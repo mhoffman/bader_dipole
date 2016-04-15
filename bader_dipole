@@ -14,8 +14,9 @@ try:
     import ase.data
     import ase.atoms
     import ase.units
-except ImportError :
-    raise UserWarning("Could not import ASE, go fetch the latest version from https://gitlab.com/ase/ase for run `pip install --user --upgrade python-ase`")
+except ImportError:
+    raise UserWarning(
+        "Could not import ASE, go fetch the latest version from https://gitlab.com/ase/ase for run `pip install --user --upgrade python-ase`")
 
 
 # pseudo-charge from QE PSP
@@ -87,7 +88,7 @@ pseudo_charges = {
     'Y': 11.00000000000,
     'Zn': 12.00000000000,
     'Zr': 12.00000000000,
-    }
+}
 
 
 def get_dipole(charge, geom, z_only=True, verbose=False):
@@ -98,23 +99,27 @@ def get_dipole(charge, geom, z_only=True, verbose=False):
     ion_center = np.zeros((3, ))
     e_center = np.zeros((3, ))
     ion_charge = 0
-    e_charge = charge.sum() 
+    e_charge = charge.sum()
 
     cell = geom.cell
 
-    #if verbose:
-        ##print("get_dipole cell = {cell}\n\n".format(**locals()))
+    # if verbose:
+    ##print("get_dipole cell = {cell}\n\n".format(**locals()))
 
     X, Y, Z = map(np.complex, charge.shape)
-    dx, dy, dz =  map(lambda x: 1./x, charge.shape)
+    dx, dy, dz = map(lambda x: 1. / x, charge.shape)
 
     if not z_only:
-        XYZ = np.column_stack(map(lambda x: x.flatten(), np.mgrid[0.:1.:dx, 0.:1.:dy, 0.:1.:dz]))
-        e_center = - np.dot(cell.T, np.sum(XYZ * charge.flatten()[:, None], axis=0) / 1.)
+        XYZ = np.column_stack(
+            map(lambda x: x.flatten(), np.mgrid[0.:1.:dx, 0.:1.:dy, 0.:1.:dz]))
+        e_center = - \
+            np.dot(
+                cell.T, np.sum(XYZ * charge.flatten()[:, None], axis=0) / 1.)
 
         if verbose:
             print('    E-center   {e_center} [A, A, A]'.format(**locals()))
-            print('    Total electron charge {charge_sum} e'.format(charge_sum=charge.sum()))
+            print('    Total electron charge {charge_sum} e'.format(
+                charge_sum=charge.sum()))
 
         for atom in geom:
             ion_contrib = atom.position * pseudo_charges[atom.symbol]
@@ -138,15 +143,17 @@ def get_dipole(charge, geom, z_only=True, verbose=False):
             print('CELL {cell}'.format(**locals()))
 
         for atom_i, atom in enumerate(geom):
-            ion_contrib = geom.get_positions()[atom_i][-1] * pseudo_charges[atom.symbol]
+            ion_contrib = geom.get_positions()[
+                atom_i][-1] * pseudo_charges[atom.symbol]
             ion_center += ion_contrib
             ion_charge += pseudo_charges[atom.symbol]
 
-        z_charge = charge.sum(axis=0).sum(axis=0) * (1) * ion_charge / charge.sum()
-        Z = (np.mgrid[0.:1.:dz] ) * cell[-1, -1]
+        z_charge = charge.sum(axis=0).sum(
+            axis=0) * (1) * ion_charge / charge.sum()
+        Z = (np.mgrid[0.:1.:dz]) * cell[-1, -1]
 
-        e_center =  np.sum(Z * z_charge)
-        e_center /=  z_charge.sum()
+        e_center = np.sum(Z * z_charge)
+        e_center /= z_charge.sum()
         ion_center /= ion_charge
 
         ion_dipole = ion_center * ion_charge
@@ -157,12 +164,15 @@ def get_dipole(charge, geom, z_only=True, verbose=False):
         if verbose:
             print('    Z evaluation only {z_only}'.format(**locals()))
             print('    E-center   {e_center} A'.format(**locals()))
-            print('    Total electron charge {charge_sum} e'.format(charge_sum=charge.sum()))
-            print('    Rescaled electron charge {z_charge_sum} e'.format(z_charge_sum=z_charge.sum()))
+            print('    Total electron charge {charge_sum} e'.format(
+                charge_sum=charge.sum()))
+            print('    Rescaled electron charge {z_charge_sum} e'.format(
+                z_charge_sum=z_charge.sum()))
 
             print('    Ion-center {ion_center} A'.format(**locals()))
             print('    Total ion charge {ion_charge} e\n'.format(**locals()))
-            print('    Electron dipole {e_dipole} | ion_dipole {ion_dipole}\n'.format(**locals()))
+            print(
+                '    Electron dipole {e_dipole} | ion_dipole {ion_dipole}\n'.format(**locals()))
             print('    Dipole {dipole} eA\n\n'.format(**locals()))
 
         return dipole
@@ -170,12 +180,12 @@ def get_dipole(charge, geom, z_only=True, verbose=False):
 
 if __name__ == '__main__':
     parser = optparse.OptionParser(usage="""
-    Density File for extracting atom centered dipole moments along z-direction
+    Analysis tool for extracting atom centered dipole moments along z-direction
     (assuming slab geometries with periodic x-, and y-coordinate).
 
     Instructions: (Assuming a VASP CHGCAR file as input)
 
-    Run bader tool from G Henkelman on CHGCAR following it instructions
+    Run bader tool from G Henkelman on CHGCAR following its instructions
     for VASP files with additional opton `-p all_atom`. This should result
     in a number of files named `BvAt%04d.dat`. In the same directory
     run  ::
@@ -187,7 +197,8 @@ if __name__ == '__main__':
     atom_index, x [A], y [A], z [A], dipole [eA]
 
     """)
-    parser.add_option('-v', '--verbose', action='store_true', default=False, help='Make evaluation verbose for debugging')
+    parser.add_option('-v', '--verbose', action='store_true',
+                      default=False, help='Make evaluation verbose for debugging')
     options, args = parser.parse_args()
 
     atomic_cube_files = glob.glob("BvAt*.dat")
@@ -195,10 +206,14 @@ if __name__ == '__main__':
         raise UserWarning("""No Atomic Cube files found, are you sure you are in the right directory? If you have a mult-atom cube file, split into many individual one by running `bader -p all_atom <cube-file>`.
 
         If you don't have the bader tool, go download it from http://theory.cm.utexas.edu/henkelman/code/bader/
+
+        Rerun script with `bader_dipole -h` for further instructions.
         """)
 
-    print("# atom_index     x                y                z          dipole")
-    print("#                Angstrom         Angstrom         Angstrom   electron*Angstrom")
+    print(
+        "# atom_index     x                y                z          dipole")
+    print(
+        "#                Angstrom         Angstrom         Angstrom   electron*Angstrom")
     for atomic_cube_file in sorted(atomic_cube_files, key=lambda x: int(x[4:8])):
         n_atom = int(atomic_cube_file[4:8]) - 1
         with open(atomic_cube_file) as infile:
@@ -211,17 +226,16 @@ if __name__ == '__main__':
             c_zx, c_zy, c_zz = map(float, infile.readline().split())
 
             cell = np.array(
-                    [[c_xx, c_xy, c_xz],
-                    [c_yx, c_yy, c_yz],
-                    [c_zx, c_zy, c_zz]]) #* np.array([n_x, n_y, n_z])
-
+                [[c_xx, c_xy, c_xz],
+                 [c_yx, c_yy, c_yz],
+                    [c_zx, c_zy, c_zz]])  # * np.array([n_x, n_y, n_z])
 
             species_names = infile.readline().strip().split()
             species_numbers = map(int, infile.readline().split())
 
             species_list = []
-            for (x,y) in zip(species_names, species_numbers):
-                species_list.extend([x]*y)
+            for (x, y) in zip(species_names, species_numbers):
+                species_list.extend([x] * y)
 
             infile.readline()
 
@@ -230,7 +244,8 @@ if __name__ == '__main__':
                     line = infile.readline().strip().split()
                     if options.verbose:
                         print(i_atom, line)
-                    ion_0, ion_1, ion_2 = np.dot(cell, np.array(map(float, line)))
+                    ion_0, ion_1, ion_2 = np.dot(
+                        cell, np.array(map(float, line)))
                 else:
                     infile.readline()
             infile.readline()
@@ -242,7 +257,8 @@ if __name__ == '__main__':
             positions = [np.array([ion_0, ion_1, ion_2])]
             geom = ase.atoms.Atoms(symbol, positions=positions, cell=cell)
             if options.verbose:
-                print("symbol {symbol}, positions {positions}, gp {n_grid_points}".format(**locals()))
+                print(
+                    "symbol {symbol}, positions {positions}, gp {n_grid_points}".format(**locals()))
                 print('Atoms {geom}'.format(**locals()))
             volume = geom.get_volume()
             charge = []
@@ -251,11 +267,14 @@ if __name__ == '__main__':
 
             read_points = len(charge)
 
-            charge = np.array(charge).reshape([n_x, n_y, n_z], order='F') / read_points
+            charge = np.array(charge).reshape(
+                [n_x, n_y, n_z], order='F') / read_points
             total_charge = charge.sum()
 
             if options.verbose:
-                print('[{n_atom:02d}] Total charge {total_charge} e, cell volume {volume}'.format(**locals()))
+                print('[{n_atom:02d}] Total charge {total_charge} e, cell volume {volume}'.format(
+                    **locals()))
 
         dipole = get_dipole(charge, geom, verbose=options.verbose)
-        print('{n_atom:02d} {ion_0:23.7f} {ion_1:15.7f} {ion_2:15.7f} {dipole:15.7f}'.format(**locals()))
+        print('{n_atom:02d} {ion_0:23.7f} {ion_1:15.7f} {ion_2:15.7f} {dipole:15.7f}'.format(
+            **locals()))
