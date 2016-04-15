@@ -1,0 +1,261 @@
+#!/usr/bin/env python
+"""
+    CLI Tool to evaluate dipole moment along z-direction of cube file
+    for each atom.
+
+    Copyright, Max J. Hoffmann, 2016, all rights reserved.
+"""
+import glob
+import os.path
+import optparse
+import numpy as np
+
+try:
+    import ase.data
+    import ase.atoms
+    import ase.units
+except ImportError :
+    raise UserWarning("Could not import ASE, go fetch the latest version from https://gitlab.com/ase/ase for run `pip install --user --upgrade python-ase`")
+
+
+# pseudo-charge from QE PSP
+# check to make sure these are consistent
+# with the pseudo-potential you are using
+pseudo_charges = {
+    'Ag': 1.100000000000000E+001,
+    'Al': 3.000000000000000E+000,
+    'Ar': 8.000000000000000E+000,
+    'As': 5.000000000000000E+000,
+    'Au': 1.100000000000000E+001,
+    'B': 3.000000000000000E+000,
+    'Ba': 10.00000000000,
+    'Be': 2.000000000000000E+000,
+    'Bi': 15.00000000000,
+    'Br': 7.000000000000000E+000,
+    'C': 4.000000000000000E+000,
+    'Ca': 10.00000000000,
+    'Cd': 1.200000000000000E+001,
+    'Cl': 7.000000000000000E+000,
+    'Co': 9.00000000000,
+    'Cr': 14.00000000000,
+    'Cs': 7.00000000000,
+    'Cu': 1.100000000000000E+001,
+    'F': 7.000000000000000E+000,
+    'Fe': 1.600000000000000E+001,
+    'Ga': 1.300000000000000E+001,
+    'Ge': 1.400000000000000E+001,
+    'H': 1.000000000000000E+000,
+    'Hf': 12.00000000000,
+    'Hg': 1.200000000000000E+001,
+    'I': 7.000000000000000E+000,
+    'In': 1.300000000000000E+001,
+    'Ir': 9.000000000000000E+000,
+    'K': 9.00000000000,
+    'Kr': 8.00000000000,
+    'La': 11.00000000000,
+    'Li': 3.000000000000000E+000,
+    'Mg': 8.00000000000,
+    'Mn': 15.00000000000,
+    'Mo': 1.400000000000000E+001,
+    'N': 5.000000000000000E+000,
+    'Na': 9.000000000000000E+000,
+    'Nb': 13.00000000000,
+    'Ni': 1.000000000000000E+001,
+    'O': 7.000000000000000E+000,
+    'Os': 8.00000000000,
+    'P': 5.000000000000000E+000,
+    'Pb': 1.400000000000000E+001,
+    'Pd': 1.000000000000000E+001,
+    'Pt': 1.000000000000000E+001,
+    'Re': 7.00000000000,
+    'Rh': 1.700000000000000E+001,
+    'Ru': 6.00000000000,
+    'S': 6.000000000000000E+000,
+    'Sb': 15.00000000000,
+    'Sc': 11.00000000000,
+    'Se': 6.000000000000000E+000,
+    'Si': 4.000000000000000E+000,
+    'Sn': 1.400000000000000E+001,
+    'Sr': 10.00000000000,
+    'Ta': 1.300000000000000E+001,
+    'Te': 1.600000000000000E+001,
+    'Ti': 12.00000000000,
+    'Tl': 13.00000000000,
+    'V': 13.00000000000,
+    'W': 14.00000000000,
+    'Xe': 8.00000000000,
+    'Y': 11.00000000000,
+    'Zn': 12.00000000000,
+    'Zr': 12.00000000000,
+    }
+
+
+def get_dipole(charge, geom, z_only=True, verbose=False):
+    """
+        Extract the dipole in the z-direction (3rd axis).
+
+    """
+    ion_center = np.zeros((3, ))
+    e_center = np.zeros((3, ))
+    ion_charge = 0
+    e_charge = charge.sum() 
+
+    cell = geom.cell
+
+    #if verbose:
+        ##print("get_dipole cell = {cell}\n\n".format(**locals()))
+
+    X, Y, Z = map(np.complex, charge.shape)
+    dx, dy, dz =  map(lambda x: 1./x, charge.shape)
+
+    if not z_only:
+        XYZ = np.column_stack(map(lambda x: x.flatten(), np.mgrid[0.:1.:dx, 0.:1.:dy, 0.:1.:dz]))
+        e_center = - np.dot(cell.T, np.sum(XYZ * charge.flatten()[:, None], axis=0) / 1.)
+
+        if verbose:
+            print('    E-center   {e_center} [A, A, A]'.format(**locals()))
+            print('    Total electron charge {charge_sum} e'.format(charge_sum=charge.sum()))
+
+        for atom in geom:
+            ion_contrib = atom.position * pseudo_charges[atom.symbol]
+            ion_center += ion_contrib
+            ion_charge += pseudo_charges[atom.symbol]
+
+        if verbose:
+            print('    Ion-center {ion_center} [A, A, A]'.format(**locals()))
+            print('    Total ion charge {ion_charge} e'.format(**locals()))
+
+        return (ion_center + e_center)[-1]
+    else:
+        ion_center = 0.
+        e_center = 0.
+
+        total_electron_charge = charge.sum()
+
+        shape = charge.shape
+        if verbose:
+            print('CHARGE GRID {charge.shape}'.format(**locals()))
+            print('CELL {cell}'.format(**locals()))
+
+        for atom_i, atom in enumerate(geom):
+            ion_contrib = geom.get_positions()[atom_i][-1] * pseudo_charges[atom.symbol]
+            ion_center += ion_contrib
+            ion_charge += pseudo_charges[atom.symbol]
+
+        z_charge = charge.sum(axis=0).sum(axis=0) * (1) * ion_charge / charge.sum()
+        Z = (np.mgrid[0.:1.:dz] ) * cell[-1, -1]
+
+        e_center =  np.sum(Z * z_charge)
+        e_center /=  z_charge.sum()
+        ion_center /= ion_charge
+
+        ion_dipole = ion_center * ion_charge
+        e_dipole = e_center * charge.sum()
+
+        dipole = (ion_dipole - e_dipole)
+
+        if verbose:
+            print('    Z evaluation only {z_only}'.format(**locals()))
+            print('    E-center   {e_center} A'.format(**locals()))
+            print('    Total electron charge {charge_sum} e'.format(charge_sum=charge.sum()))
+            print('    Rescaled electron charge {z_charge_sum} e'.format(z_charge_sum=z_charge.sum()))
+
+            print('    Ion-center {ion_center} A'.format(**locals()))
+            print('    Total ion charge {ion_charge} e\n'.format(**locals()))
+            print('    Electron dipole {e_dipole} | ion_dipole {ion_dipole}\n'.format(**locals()))
+            print('    Dipole {dipole} eA\n\n'.format(**locals()))
+
+        return dipole
+
+
+if __name__ == '__main__':
+    parser = optparse.OptionParser(usage="""
+    Density File for extracting atom centered dipole moments along z-direction
+    (assuming slab geometries with periodic x-, and y-coordinate).
+
+    Instructions: (Assuming a VASP CHGCAR file as input)
+
+    Run bader tool from G Henkelman on CHGCAR following it instructions
+    for VASP files with additional opton `-p all_atom`. This should result
+    in a number of files named `BvAt%04d.dat`. In the same directory
+    run  ::
+
+        bader_dipoles | tee bader_dipoles.dat
+
+    The resulting output is an ASCII file with 5 columns
+
+    atom_index, x [A], y [A], z [A], dipole [eA]
+
+    """)
+    parser.add_option('-v', '--verbose', action='store_true', default=False, help='Make evaluation verbose for debugging')
+    options, args = parser.parse_args()
+
+    atomic_cube_files = glob.glob("BvAt*.dat")
+    if len(atomic_cube_files) == 0:
+        raise UserWarning("""No Atomic Cube files found, are you sure you are in the right directory? If you have a mult-atom cube file, split into many individual one by running `bader -p all_atom <cube-file>`.
+
+        If you don't have the bader tool, go download it from http://theory.cm.utexas.edu/henkelman/code/bader/
+        """)
+
+    print("# atom_index     x                y                z          dipole")
+    print("#                Angstrom         Angstrom         Angstrom   electron*Angstrom")
+    for atomic_cube_file in sorted(atomic_cube_files, key=lambda x: int(x[4:8])):
+        n_atom = int(atomic_cube_file[4:8]) - 1
+        with open(atomic_cube_file) as infile:
+            infile.readline()
+            infile.readline()
+            #n_atoms, _, _, _ = map(float, infile.readline().split())
+            n_atoms = len(atomic_cube_files)
+            c_xx, c_xy, c_xz = map(float, infile.readline().split())
+            c_yx, c_yy, c_yz = map(float, infile.readline().split())
+            c_zx, c_zy, c_zz = map(float, infile.readline().split())
+
+            cell = np.array(
+                    [[c_xx, c_xy, c_xz],
+                    [c_yx, c_yy, c_yz],
+                    [c_zx, c_zy, c_zz]]) #* np.array([n_x, n_y, n_z])
+
+
+            species_names = infile.readline().strip().split()
+            species_numbers = map(int, infile.readline().split())
+
+            species_list = []
+            for (x,y) in zip(species_names, species_numbers):
+                species_list.extend([x]*y)
+
+            infile.readline()
+
+            for i_atom in range(int(n_atoms)):
+                if i_atom == n_atom:
+                    line = infile.readline().strip().split()
+                    if options.verbose:
+                        print(i_atom, line)
+                    ion_0, ion_1, ion_2 = np.dot(cell, np.array(map(float, line)))
+                else:
+                    infile.readline()
+            infile.readline()
+
+            n_x, n_y, n_z = map(float, infile.readline().strip().split())
+            n_grid_points = (n_x * n_y * n_z)
+
+            symbol = species_list[n_atom]
+            positions = [np.array([ion_0, ion_1, ion_2])]
+            geom = ase.atoms.Atoms(symbol, positions=positions, cell=cell)
+            if options.verbose:
+                print("symbol {symbol}, positions {positions}, gp {n_grid_points}".format(**locals()))
+                print('Atoms {geom}'.format(**locals()))
+            volume = geom.get_volume()
+            charge = []
+            for line in infile:
+                charge.extend(map(float, line.strip().split()))
+
+            read_points = len(charge)
+
+            charge = np.array(charge).reshape([n_x, n_y, n_z], order='F') / read_points
+            total_charge = charge.sum()
+
+            if options.verbose:
+                print('[{n_atom:02d}] Total charge {total_charge} e, cell volume {volume}'.format(**locals()))
+
+        dipole = get_dipole(charge, geom, verbose=options.verbose)
+        print('{n_atom:02d} {ion_0:23.7f} {ion_1:15.7f} {ion_2:15.7f} {dipole:15.7f}'.format(**locals()))
