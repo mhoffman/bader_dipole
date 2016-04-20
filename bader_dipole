@@ -196,6 +196,11 @@ if __name__ == '__main__':
 
     atom_index, x [A], y [A], z [A], dipole [eA]
 
+    N.B.: Run script with bader_tool -v to get extensive debugging output. If the bader
+    electronic charges deviate systematically from the ioinic charges you most likely
+    have to adapt this script to reflect the correct number of valence charges of your
+    pseudo-potential.
+
     """)
     parser.add_option('-v', '--verbose', action='store_true',
                       default=False, help='Make evaluation verbose for debugging')
